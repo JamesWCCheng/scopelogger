@@ -3,7 +3,6 @@ import os
 import sys
 import tempfile
 
-#Q3: any better idea?
 def find_and_replace(line, ch, adding_token):
     index = line.find('{')
     # e.g 'if (nullptr) { [](){}; }' , first '{' is in index 13.
@@ -19,33 +18,42 @@ def find_and_replace(line, ch, adding_token):
 def find_occurences(s, ch):
     return [i for i, letter in enumerate(s) if letter == ch]
 
-def start_parsing(filename, adding_token):
-    print 'filename = %s, token = %s' % (filename, adding_token)
+def start_parsing(filepath, adding_token):
+    print 'filepath = %s, token = %s' % (filepath, adding_token)
+    adding_token = ' ' + adding_token
     # create a temp file to store the parsing result.
-    fd, path = tempfile.mkstemp(prefix=filename)
-    print fd, path
-    #Q2 need to close the handle?
+    fd, path = tempfile.mkstemp(prefix=filepath)
+    previous_line = ' '
     with os.fdopen(fd, 'w', 65536) as writer:
-        with open(filename, 'r') as reader:
+        with open(filepath, 'r') as reader:
             lines = reader.readlines()
             for line in lines:
-                result = find_and_replace(line, '{', adding_token)
-                writer.write(result)
-    #Q1 : windows will cause exception when the file is existing.
-    os.rename(path, filename + 'new')
+                   # no need to process 'namespace {' case.
+                   # no need to process '{' which may be the next line of 'namespace xxx'
+                   # avoid this case 'foo({ xxx, yyy});'.
+                   # cannot handle the constructing by {}
+                if (not line.lstrip().startswith('namespace'))\
+                   and (not (previous_line.lstrip().startswith('namespace') and line.lstrip().startswith('{')))\
+                   and '({' not in line:
+                  result = find_and_replace(line, '{', adding_token)
+                  writer.write(result)
+                else:
+                  writer.write(line)
+                previous_line = line
+    # remove the original file
+    os.remove(filepath)
+    # write the processed file back to the original name.
+    os.rename(path, filepath)
 
 def main():
-    print 'Number of arguments:', len(sys.argv), 'arguments.'
-    print 'Argument List:', str(sys.argv)
-    filename = ''
+    filepath = ''
     adding_token = 'printf("%s", __func__);'
-    #Q4: any better logic?
-    if len(sys.argv) > 1: 
-        filename = str(sys.argv[1])
-    if len(sys.argv) > 2: 
+    if len(sys.argv) > 1:
+        filepath = str(sys.argv[1])
+    if len(sys.argv) > 2:
         adding_token = str(sys.argv[2])
 
-    start_parsing(filename, adding_token)
+    start_parsing(filepath, adding_token)
 
 if __name__ == '__main__':
     main()
